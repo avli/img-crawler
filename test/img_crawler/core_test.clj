@@ -2,6 +2,10 @@
   (:require [clojure.test :refer :all]
             [img-crawler.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(deftest dom-processing-test
+  (testing "imgs-src empty dom"
+    (is (= '() (imgs-src []))))
+  (testing "img-src the non-empty dom, no img tag"
+    (is (= '() (imgs-src []))))
+  (testing "img-src the non-empty dom has the img tag"
+    (is (= '("foo") (imgs-src [:html {} [:img {:src "foo"}]])))))
