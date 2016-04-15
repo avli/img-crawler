@@ -1,36 +1,28 @@
 (ns img-crawler.core
-  (:require [pl.danieljanus.tagsoup :only parse tag children])
+  (:require [pl.danieljanus.tagsoup :refer [parse tag attributes children]])
   (:gen-class))
 
-(defn one-or-zero-elements? [coll]
-  (let [length (count coll)]
-    (or (= 1 length) (= 0 length))))
+(defn img-tag? [tag]
+  (= :img tag))
 
-(defn temp [flat-dom acc]
-  (let [[x & rest] flat-dom]
-    (if (or (nil? x) (nil? rest))
-      ;; we're done, return what we were able to collect
-      acc
-      ;; this condition is terrible!! please, refactor it
-      (if (= :img x)
-        (let [[attrs & everything-else] rest]
-          (if (and (map? attrs) (contains? attrs :src))
-            (temp everything-else (conj acc (:src attrs)))
-            (temp rest acc)))
-        (temp rest acc)))))
+(defn src-attribute [attributes]
+  (when (map? attributes)
+    (:src attributes)))
 
-(defn imgs
-  "Takes the page content got from tagsoup/parse and returns all <img>
-  tags."
-  [content]
-  ;; I think, I know the easy way to do it :)
-  ;; Let's flatten the DOM first...
-  (let [flat-dom content]
-    ;; Now we should go through the vector and search for :img keywords.
-    ;; The information we need will be in the map next to them!
+(defn get-src-if-img [tag attributes]
+  (when (img-tag? tag)
+    (src-attribute attributes)))
 
-    )
-)
+(defn imgs-src
+  "Takes a page's DOM, finds all <img> tags and returns
+  a list of their src attributes values."
+  [dom]
+  (let [tag (tag dom)
+        attrs (attributes dom)
+        children (children dom)]
+    (if (or (not children) (string? children))
+      (conj [] (get-src-if-img tag attrs))
+      (filter some? (concat (conj [] (get-src-if-img tag attrs)) (mapcat imgs-src (filter vector? children)))))))
 
 (defn crawl-page [url]
   (let [content (parse url)]
