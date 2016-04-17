@@ -35,7 +35,8 @@
 
 (defn filter-pages [url pages]
   (let [current-page (last (split url #"/"))
-        pred (every-pred #(not= (last (split % #"/")) current-page) #(not (starts-with? % "/#")) #(not (re-find #"#" %)))]
+        pred (every-pred #(not= (last (split % #"/")) current-page) #(not (starts-with? % "/#")) #(not (re-find #"#" %))
+                         #(not (re-find #"(^www)|(^http)" %)) #(re-matches #"/?[a-zA-Z_%\d\+\-]+/?" %))]
     (filter pred (filter (every-pred #(not= "/" %) #(not (nil? %))) pages))))
 
 (defn process-page [url]
