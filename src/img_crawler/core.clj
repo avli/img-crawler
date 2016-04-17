@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [pl.danieljanus.tagsoup :refer [parse-string tag attributes children]])
   (:require [clj-http.client :as client])
+  (:require [clojure.string :refer [starts-with? ends-with?]])
   (:import (java.io IOException)))
 
 (defn get-url-contents [url]
@@ -33,12 +34,13 @@
              [images pages])))))))
 
 (defn process-page [url]
+  (println (str "Processing page " url))
   (if-let [data (get-url-contents url)]
     (let [node (parse-string data)
           [images pages] (process-node node)]
       (if-not pages
         images
-        (concat images (mapcat process-page pages))))))
+        (concat images (mapcat process-page (map #(str url %) (filter #(not (or (= % "/") (starts-with? (str %) "/#"))) pages))))))))
 
 (defn start [url target-dir]
   ;; 1. Ensure target-dir exists.
