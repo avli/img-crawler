@@ -1,80 +1,57 @@
 (ns img-crawler.core
+  (:gen-class)
   (:require [pl.danieljanus.tagsoup :refer [parse-string tag attributes children]])
   (:require [clj-http.client :as client])
-  (:gen-class))
+  (:import (java.io IOException)))
 
-(defn img-tag? [tag]
-  (= :img tag))
+(defn get-url-contents [url]
+  (let [h {"User-Agent" "Mozilla/5.0 (Windows NT 6.1;) Gecko/20100101 Firefox/13.0.1"}]
+    (if-let [response (try
+                        (client/get url {:headers h})
+                        (catch IOException _ nil))]
+      (get response :body))))
 
-(defn src-attribute [attributes]
-  (when (map? attributes)
-    (:src attributes)))
+(defn process-node
+  ([node]
+   (process-node node [] []))
+  ([node images pages]
+   (let [tag (tag node)
+         attrs (attributes node)
+         children (filter vector? (children node))]
+     (if (empty? children)
+       (case tag
+         :img [(conj images (:src attrs)) pages]
+         :a [images (conj pages (:href attrs))]
+         [images pages])
+       (let [[new-images new-pages] (process-node [tag attrs nil] images pages)]
+         (loop [images new-images
+                pages new-pages
+                children children]
+           (if-let [child (first children)]
+             (let [[new-images new-pages] (process-node child images pages)]
+               (recur new-images new-pages (rest children)))
+             [images pages])))))))
 
-(defn get-src-if-img [tag attributes]
-  (when (img-tag? tag)
-    (src-attribute attributes)))
+(defn process-page [url]
+  (if-let [data (get-url-contents url)]
+    (let [node (parse-string data)
+          [images pages] (process-node node)]
+      (if-not pages
+        images
+        (concat images (mapcat process-page pages))))))
 
-;; In case I want to actually crawl the page, I need to extract <a>
-;; tags as well... I think, I should rework this function. I want to
-;; have something like this: {:hrefs [...] :img-srcs [...]}
-
-(defn imgs-src
-  "Takes a page's DOM, finds all <img> tags and returns
-  a list of their src attributes values."
-  [dom]
-  (let [tag (tag dom)
-        attrs (attributes dom)
-        children (children dom)]
-    (if (or (not children) (string? children))
-      (conj [] (get-src-if-img tag attrs))
-      (filter some? (concat (conj [] (get-src-if-img tag attrs)) (mapcat imgs-src (filter vector? children)))))))
-
-(defn extract-src-or-href
-  "Depending on the tag attribute value extracts src attribute (for
-  <img>) or href (for <a>)."
-  [tag attributes]
-  (case tag
-    :img (:src attributes)
-    :a (:href attributes)
-    nil))
-
-(defn process-page
-  "Takes a page's DOM and returns a hash-map with images URLs and list
-  of <a> tags href attributes."
-  [dom]
-  (let [tag (tag dom)
-        attrs (attributes dom)
-        children (children dom)]
-    (if (or (not children) (string? children))
-      (conj [] (get-src-if-img tag attrs))
-      (filter some? (concat (conj [] (get-src-if-img tag attrs)) (mapcat imgs-src (filter vector? children)))))))
-
-(defn construct-absolute-path
-  "Constructs absolute path to the resources (image in our case)."
-  [prefix img-src]
-  (str prefix "/" img-src))
-
-;; This function should return a list of images URLs and a list of
-;; hrefs.
-(defn crawl-page [url]
-  (let [h {"User-Agent" "Mozilla/5.0 (Windows NT 6.1;) Gecko/20100101 Firefox/13.0.1"}
-        resp (client/get url {:headers h})
-        dom (parse-string (:body resp))]
-    (map (partial construct-absolute-path url) (imgs-src dom))))
-
-(defn run-crawler [url]
-  ;; Not sure about this function yet... Let's start with single page
-  ;; processing...
+(defn start [url target-dir]
+  ;; 1. Ensure target-dir exists.
+  ;; 2. Get a list of images.
+  ;; 3. Download every image from the list to the target-dir.
   )
 
 (defn -main
-  "Let's the first argument will be the URL."
   [& args]
-  (if (< 2 (count args))
+  (if (not= 2 (count args))
     (do
-      (println "Usage: lein run <URL> <TARGET DIR>")
+      (println "Usage: java -jar img-crawler.jar <url> <target_dir>")
       (System/exit 1))
-    ;; else do the thing!
     (let [url (first args)
           target-dir (second args)]
-      (run-crawler url))))
+      (start url target-dir))))
