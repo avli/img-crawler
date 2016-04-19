@@ -3,7 +3,9 @@
   (:require [pl.danieljanus.tagsoup :refer [parse-string tag attributes children]])
   (:require [clj-http.client :as client])
   (:require [clojure.string :refer [starts-with? ends-with? split]])
-  (:import (java.io IOException)))
+  (:require [clojure.set :refer [subset? difference]])
+  (:import (java.io IOException)
+           (java.net URL)))
 
 (defn get-url-contents [url]
   (let [h {"User-Agent" "Mozilla/5.0 (Windows NT 6.1;) Gecko/20100101 Firefox/13.0.1"}]
@@ -15,16 +17,16 @@
 (defn process-node
   ([node]
    (process-node node [] []))
-  ([node images pages]
+  ([node found-images found-pages]
    (let [tag (tag node)
          attrs (attributes node)
          children (filter vector? (children node))]
      (if (empty? children)
        (case tag
-         :img [(conj images (:src attrs)) pages]
-         :a [images (conj pages (:href attrs))]
-         [images pages])
-       (let [[new-images new-pages] (process-node [tag attrs nil] images pages)]
+         :img [(conj found-images (:src attrs)) found-pages]
+         :a [found-images (conj found-pages (:href attrs))]
+         [found-images found-pages])
+       (let [[new-images new-pages] (process-node [tag attrs nil] found-images found-pages)]
          (loop [images new-images
                 pages new-pages
                 children children]
@@ -44,10 +46,31 @@
   (if-let [data (get-url-contents url)]
     (let [node (parse-string data)
           [images pages] (process-node node)]
-      (println (filter-pages url pages))
-      (if-not pages
-        images
-        (concat images (mapcat process-page (map #(str url %) (filter-pages url pages))))))))
+      ;(println (filter-pages url pages))
+      (loop [processed-pages #{}
+             found-pages (into #{} (conj (filter-pages url pages) url))
+             found-images (into #{} images)]
+        (println "----")
+        (println found-pages)
+        (println processed-pages)
+        (println "----")
+        (if (subset? found-pages processed-pages)
+          found-images
+          (let [hostname (-> (URL. url) (.getHost))
+                protocol (-> (URL. url) (.getProtocol))
+                diff (difference found-pages processed-pages)
+                current-page (first diff)
+                [new-images new-pages] (process-node (try (-> (str protocol "://" hostname current-page) get-url-contents parse-string) (catch Exception _ nil) ))]
+            (recur (conj processed-pages current-page) (into found-pages (filter-pages url new-pages)) (conj found-images new-images))))))))
+      ;(if-not pages
+      ;  images
+      ;  (let [hostname (-> (URL. url) (.getHost))
+      ;        protocol (-> (URL. url) (.getProtocol))]
+      ;    (loop [visited-pages #{}
+      ;           found-pages #{}]
+      ;
+      ;      )
+      ;    (concat images (mapcat process-page (map #(str protocol "://" hostname %) (filter-pages url pages)))))))))
 
 (defn start [url target-dir]
   ;; 1. Ensure target-dir exists.
