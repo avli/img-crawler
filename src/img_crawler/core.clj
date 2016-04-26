@@ -4,6 +4,8 @@
   (:require [clj-http.client :as client])
   (:require [clojure.string :refer [starts-with? ends-with? split]])
   (:require [clojure.set :refer [subset? difference]])
+  (:require [clojure.java.io :refer [as-file as-url]]
+            [clojure.java.io :as io])
   (:import (java.io IOException)
            (java.net URL)))
 
@@ -50,33 +52,47 @@
       (loop [processed-pages #{}
              found-pages (into #{} (conj (filter-pages url pages) url))
              found-images (into #{} images)]
-        (println "----")
-        (println found-pages)
-        (println processed-pages)
-        (println "----")
+        ;(println "----")
+        ;(println found-pages)
+        ;(println processed-pages)
+        ;(println "----")
         (if (subset? found-pages processed-pages)
-          found-images
+          (into [] (flatten (seq found-images)))
           (let [hostname (-> (URL. url) (.getHost))
                 protocol (-> (URL. url) (.getProtocol))
                 diff (difference found-pages processed-pages)
                 current-page (first diff)
                 [new-images new-pages] (process-node (try (-> (str protocol "://" hostname current-page) get-url-contents parse-string) (catch Exception _ nil) ))]
             (recur (conj processed-pages current-page) (into found-pages (filter-pages url new-pages)) (conj found-images new-images))))))))
-      ;(if-not pages
-      ;  images
-      ;  (let [hostname (-> (URL. url) (.getHost))
-      ;        protocol (-> (URL. url) (.getProtocol))]
-      ;    (loop [visited-pages #{}
-      ;           found-pages #{}]
-      ;
-      ;      )
-      ;    (concat images (mapcat process-page (map #(str protocol "://" hostname %) (filter-pages url pages)))))))))
+
+(defn ensure-dir [path]
+  (let [file (as-file path)]
+    (when (.exists file)
+      (when (.isFile file) false))
+    (.mkdirs file)))
+
+(defn basename [path]
+  (-> (as-file path) (.getName)))
+
+(defn dirname [path]
+  (-> (as-file path) (.getParent)))
 
 (defn start [url target-dir]
   ;; 1. Ensure target-dir exists.
   ;; 2. Get a list of images.
   ;; 3. Download every image from the list to the target-dir.
-  )
+  (if (ensure-dir target-dir)
+    (let [links (process-page url)
+          local-paths (map #(str target-dir %) links)
+          remote-paths (map #(str url %) links)]
+      (println remote-paths)
+      ;(map (fn [local-path remote-path] (let [content (slurp remote-path)] (ensure-dir (dirname local-path)) (spit local-path content))) local-paths remote-paths))))
+      (map
+        (fn [local-path remote-path]
+          (ensure-dir (dirname local-path))
+          (with-open [in (io/input-stream remote-path)
+                      out (io/output-stream local-path)]
+            (io/copy in out))) local-paths remote-paths))))
 
 (defn -main
   [& args]
