@@ -10,6 +10,8 @@ Run
 
 to download all images from URL to target dir. 
 
+Use HTTPS in the URL if possible.
+
 ## License
 
 Copyright © 2016 Andrey Lisin

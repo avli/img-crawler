@@ -52,10 +52,6 @@
       (loop [processed-pages #{}
              found-pages (into #{} (conj (filter-pages url pages) url))
              found-images (into #{} images)]
-        ;(println "----")
-        ;(println found-pages)
-        ;(println processed-pages)
-        ;(println "----")
         (if (subset? found-pages processed-pages)
           (into [] (flatten (seq found-images)))
           (let [hostname (-> (URL. url) (.getHost))
@@ -66,10 +62,13 @@
             (recur (conj processed-pages current-page) (into found-pages (filter-pages url new-pages)) (conj found-images new-images))))))))
 
 (defn ensure-dir [path]
-  (let [file (as-file path)]
-    (when (.exists file)
-      (when (.isFile file) false))
-    (.mkdirs file)))
+  (let [file (as-file path)
+        file-exists (.exists file)]
+    (if file-exists
+      (if (.isFile file)
+        false
+        true)
+      (.mkdirs file))))
 
 (defn basename [path]
   (-> (as-file path) (.getName)))
@@ -77,22 +76,30 @@
 (defn dirname [path]
   (-> (as-file path) (.getParent)))
 
+(defn uri-maybe-add-ending-slash [uri]
+  (if-not (ends-with? uri "/")
+    (str uri "/")
+    uri))
+
+(defn copy-file [from-uri to-uri]
+  (ensure-dir (dirname to-uri))
+  (with-open [in (io/input-stream from-uri)
+              out (io/output-stream (as-file to-uri))]
+    (io/copy in out)))
+
 (defn start [url target-dir]
   ;; 1. Ensure target-dir exists.
   ;; 2. Get a list of images.
   ;; 3. Download every image from the list to the target-dir.
   (if (ensure-dir target-dir)
-    (let [links (process-page url)
+    (let [url (uri-maybe-add-ending-slash url)
+          target-dir (uri-maybe-add-ending-slash target-dir)
+          links (process-page url)
           local-paths (map #(str target-dir %) links)
           remote-paths (map #(str url %) links)]
-      (println remote-paths)
-      ;(map (fn [local-path remote-path] (let [content (slurp remote-path)] (ensure-dir (dirname local-path)) (spit local-path content))) local-paths remote-paths))))
-      (map
-        (fn [local-path remote-path]
-          (ensure-dir (dirname local-path))
-          (with-open [in (io/input-stream remote-path)
-                      out (io/output-stream local-path)]
-            (io/copy in out))) local-paths remote-paths))))
+      ;(println remote-paths)
+      ;(println local-paths)
+      (dorun (pmap copy-file remote-paths local-paths)))))
 
 (defn -main
   [& args]
