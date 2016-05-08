@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="Leiningen: net.java.dev.stax-utils/stax-utils:20040917">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/net/java/dev/stax-utils/stax-utils/20040917/stax-utils-20040917.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
