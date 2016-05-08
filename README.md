@@ -4,13 +4,15 @@ A simple project I wrote during [live coding sessions](https://livecoding.tv/min
 
 ## Usage
 
-FIXME: explanation
+Run 
 
-    $ java -jar img-crawler-0.1.0-standalone.jar [args]
+    $ java -jar img-crawler-0.1.0-standalone.jar <url> <target_dir>
+
+to download all images from URL to target dir. 
 
 ## License
 
-Copyright © 2016 FIXME
+Copyright © 2016 Andrey Lisin
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
